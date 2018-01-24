@@ -274,3 +274,27 @@ likelihood = get_likelihood(term_docs_train, label_index, smoothing)
 # Predict posterior of test set
 term_docs_test = cv.transform(X_test)
 posterior = get_posterior(term_docs_test, prior, likelihood)
+
+
+
+
+# In[8]:
+
+
+'''
+Evaluating Model Performance
+'''
+
+correct = 0.0
+for pred, actual in zip(posterior, Y_test):
+    print(pred, actual)
+    if actual == 1:
+        if pred[1] >= 0.5:
+            correct += 1
+
+    elif pred[0] > 0.5:
+        correct += 1
+
+
+print('The accuracy on {0} testing samples is: {1:.1f}%'.format(len(Y_test), correct/len(Y_test)*100))
+# The accuracy on 1707 testing samples is: 92.0%
