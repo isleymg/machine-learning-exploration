@@ -35,7 +35,7 @@ print(ham_sample)
 '''
 Import all necessary text files
 '''
-import glob 
+import glob
 import os
 emails, labels = [], []
 
@@ -44,15 +44,15 @@ for filename in glob.glob(os.path.join(spam_file_path, '*.txt')):
     with open(filename, 'r', encoding="ISO-8859-1") as infile:
         emails.append(infile.read())
         labels.append(1)
-        
-        
+
+
 nonspam_file_path = 'enron1/ham'
 for filename in glob.glob(os.path.join(nonspam_file_path, '*.txt')):
     with open(filename, 'r', encoding="ISO-8859-1") as infile:
         emails.append(infile.read())
         labels.append(0)
-        
-        
+
+
 print (len(emails))
 print (len(labels))
 
@@ -95,12 +95,12 @@ cleaned_emails[0]
 '''
 Vectorize:
 ----------
-Takes the document matrix (rows of words) into a term document matrix 
+Takes the document matrix (rows of words) into a term document matrix
 where each row is a term frequency sparse vector for a document and an email
 
 Column format: (row index, feature/term index)
 '''
-from sklearn.feature_extraction.text import CountVectorizer 
+from sklearn.feature_extraction.text import CountVectorizer
 cv = CountVectorizer(stop_words="english", max_features=500) # considers 500 most frequent terms
 
 term_docs = cv.fit_transform(cleaned_emails)
@@ -149,11 +149,11 @@ prior = get_prior(label_index) # {1: 0.2900232018561485, 0: 0.7099767981438515}
 import numpy as np
 def get_likelihood(term_document_matrix, label_index, smoothing=0):
     '''Compute likelihood based on training samples
-    Args: 
+    Args:
         term_document_matrix
         label_index
         smoothing
-    Returns: 
+    Returns:
         dictionary {class: conditional_prob(feature|class)}
     '''
     likelihood = {}
@@ -163,8 +163,8 @@ def get_likelihood(term_document_matrix, label_index, smoothing=0):
         total_count = likelihood[label].sum()
         likelihood[label] = likelihood[label]/float(total_count)
     return likelihood
-     
-    
+
+
 smoothing = 1
 likelihood = get_likelihood(term_docs, label_index, smoothing)
 
@@ -173,5 +173,104 @@ print(likelihood[0][:5]) # [ 0.00108581  0.00095774  0.00087978  0.00084637  0.0
 
 # corresponding terms
 print(feature_names[:5]) # ['able', 'access', 'account', 'accounting', 'act']
-                                       
 
+def get_posterior(term_document_matrix, prior, likelihood):
+    '''
+    Compute posterior of testing samples based on prior and likelihood
+    Args:
+        term_document_matrix (sparse matrix)
+        prior dictionary{class label: prior}
+        likelihood dictionary {class label:conditional probability vector}
+    Returns:
+       dictionary {class label: posterior}
+    '''
+    num_docs = term_document_matrix.shape[0]
+    posteriors = []
+    for i in range(num_docs):
+        posterior = {key: np.log(prior_label) for key, prior_label in prior.items()}
+        for label, likelihood_label in likelihood.items():
+            term_document_vector = term_document_matrix.getrow(i)
+            counts = term_document_vector.data
+            indices = term_document_vector.indices
+            for count, index in zip(counts, indices):
+                posterior[label] += np.log(likelihood_label[index]) * count
+
+        min_log_posterior = min(posterior.values())
+        for label in posterior:
+            try:
+                posterior[label] = np.exp(posterior[label] - min_log_posterior)
+            except:
+                posterior[label] = float('inf')
+        sum_posterior = sum(posterior.values())
+        for label in posterior:
+            if posterior[label] == float('inf'):
+                posterior[label] = 1.0
+            else:
+                posterior[label] /= sum_posterior
+        posteriors.append(posterior.copy())
+    return posteriors
+
+
+
+
+
+# In[6]:
+
+
+'''
+Small test of Naive Bayes functions
+'''
+
+emails_test = [
+    '''Subject: flat screens
+   hello ,
+   please call or contact regarding the other flat screens
+   requested .
+   trisha tlapek - eb 3132 b
+   michael sergeev - eb 3132 a
+   also the sun blocker that was taken away from eb 3131 a .
+   trisha should two monitors also michael .
+   thanks
+   kevin moore''',
+   '''Subject: having problems in bed ? we can help !
+   cialis allows men to enjoy a fully normal sex life without
+   having to plan the sexual act .
+   if we let things terrify us, life will not be worth living
+   brevity is the soul of lingerie .
+   suspicion always haunts the guilty mind .'''
+]
+
+cleaned_test = clean_text(emails_test)
+
+term_docs_test = cv.transform(cleaned_test)
+posterior = get_posterior(term_docs_test, prior, likelihood)
+print(posterior)
+
+# [{1: 0.0032745671008375999, 0: 0.99672543289916238}, {1: 0.99999847255388452, 0: 1.5274461154428757e-06}]
+# first email: 99.67% change it is genuine (not spam)
+# second email: 99.99% change it is spam
+
+
+# In[7]:
+
+
+'''
+Testing Naive Bayes Classifier with downloaded data
+----------------------------------------------------
+'''
+
+# Split dataset into 66% training (learning) and 33% testing (prediction)
+# with random_state=42 for consistent training & testing sets
+
+from sklearn.model_selection import train_test_split
+X_train, X_test, Y_train, Y_test = train_test_split(cleaned_emails, labels, test_size = 0.33, random_state=42)
+
+# Retrain term frequency CountVectorizer to recompute prior and likelihood
+term_docs_train = cv.fit_transform(X_train)
+label_index = get_label_index(Y_train)
+prior = get_prior(label_index)
+likelihood = get_likelihood(term_docs_train, label_index, smoothing)
+
+# Predict posterior of test set
+term_docs_test = cv.transform(X_test)
+posterior = get_posterior(term_docs_test, prior, likelihood)
