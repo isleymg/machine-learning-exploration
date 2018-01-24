@@ -298,3 +298,122 @@ for pred, actual in zip(posterior, Y_test):
 
 print('The accuracy on {0} testing samples is: {1:.1f}%'.format(len(Y_test), correct/len(Y_test)*100))
 # The accuracy on 1707 testing samples is: 92.0%
+
+
+# In[9]:
+
+
+'''
+If we wanted to do what we just did but with built in libraries we can use:
+- MultinomialNB to initialize a model
+- Train the model with fit()
+- Use predict_proba() to obtain prediction results
+- Acquire predicted class balues with predict()
+- Measure accuracy with score() and sklearn.metrics performance metrics functions
+
+Same thing, a LOT less lines! (and a lot more abstracted)
+
+'''
+
+from sklearn.naive_bayes import MultinomialNB
+clf = MultinomialNB(alpha=1.0, fit_prior=True)
+clf.fit(term_docs_train, Y_train)
+prediction_prob = clf.predict_proba(term_docs_test)
+
+prediction_prob[0:10]
+'''returns
+array([[  1.00000000e+00,   2.12716600e-10],
+       [  1.00000000e+00,   2.72887131e-75],
+       [  6.34671963e-01,   3.65328037e-01],
+       [  1.00000000e+00,   1.67181666e-12],
+       [  1.00000000e+00,   4.15341124e-12],
+       [  1.37860327e-04,   9.99862140e-01],
+       [  0.00000000e+00,   1.00000000e+00],
+       [  1.00000000e+00,   1.07066506e-18],
+       [  1.00000000e+00,   2.02235745e-13],
+       [  3.03193335e-01,   6.96806665e-01]])
+'''
+
+prediction = clf.predict(term_docs_test)
+prediction[:10]
+
+accuracy = clf.score(term_docs_test, Y_test)
+print('The accuracy using MultinomialNB is: {0:.1f}%\n'.format(accuracy*100))
+# The accuracy using MultinomialNB is: 92.0%
+
+'''
+Important metrics:
+Precision: positive classification that are correct out of all classfied
+Recall: positive classification that are correct out of all positives classified
+F1: 2 * ( Precision * Recall) / ( Precision + Recall )
+
+'''
+from sklearn.metrics import classification_report
+report = classification_report(Y_test, prediction)
+print(report)
+
+'''
+The accuracy using MultinomialNB is: 92.0%
+
+             precision    recall  f1-score   support
+
+          0       0.96      0.92      0.94      1191
+          1       0.84      0.92      0.87       516
+
+avg / total       0.92      0.92      0.92      1707
+
+'''
+
+
+# In[10]:
+
+
+'''
+Model Tuning and Cross Validation
+----------------------------------
+k-fold cross-validation: original data randomly divided into k equal-sized subsets, class priortion is preserved
+    Each of k subsets is retained as testing set for model
+    k-1 subsets form the training set for model
+    Average performance across all k trails is calculated for overall result
+'''
+
+from sklearn.model_selection import StratifiedKFold
+from sklearn.metrics import roc_auc_score
+k=10
+k_fold = StratifiedKFold(n_splits = k)
+cleaned_emails_np = np.array(cleaned_emails)
+labels_np = np.array(labels)
+
+max_features_option = [2000, 4000, 8000]
+smoothing_factor_option = [0.5, 1.0, 1.5, 2.0]
+fit_prior_option = [True, False]
+auc_record = {}
+
+
+for train_indices, test_indices in k_fold.split(cleaned_emails, labels):
+    X_train, X_test = cleaned_emails_np[train_indices], cleaned_emails_np[test_indices]
+    Y_train, Y_test = labels_np[train_indices], labels_np[test_indices]
+    for max_features in max_features_option:
+        if max_features not in auc_record:
+            auc_record[max_features] = {}
+            cv = CountVectorizer(stop_words="english", max_features=max_features)
+            term_docs_train = cv.fit_transform(X_train)
+            term_docs_test = cv.transform(X_test)
+            for smoothing_factor in smoothing_factor_option:
+                if smoothing_factor not in auc_record[max_features]:
+                    auc_record[max_features][smoothing] = {}
+                for fit_prior in fit_prior_option:
+                    clf = MultinomialNB(alpha=smoothing, fit_prior=fit_prior)
+                    clf.fit(term_docs_train, Y_train)
+                    prediction_prob = clf.predict_proba(term_docs_test)
+                    pos_prob = prediction_prob[:, 1]
+                    auc = roc_auc_score(Y_test, pos_prob)
+                    auc_record[max_features][smoothing][fit_prior] = auc + auc_record[max_features][smoothing].get(fit_prior, 0.0)
+
+
+print('max features  smoothing  fit prior  auc'.format(max_features, smoothing, fit_prior, auc/k))
+
+for max_features, max_feature_record in auc_record.items():
+    for smoothing, smoothing_record in max_feature_record.items():
+        for fit_prior, auc in smoothing_record.items():
+            print('       {0}      {1}      {2}    {3:.4f}'.format(max_features, smoothing, fit_prior, auc/k))
