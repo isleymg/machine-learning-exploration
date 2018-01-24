@@ -367,16 +367,7 @@ avg / total       0.92      0.92      0.92      1707
 
 # In[10]:
 
-
-'''
-Model Tuning and Cross Validation
-----------------------------------
-k-fold cross-validation: original data randomly divided into k equal-sized subsets, class priortion is preserved
-    Each of k subsets is retained as testing set for model
-    k-1 subsets form the training set for model
-    Average performance across all k trails is calculated for overall result
-'''
-
+from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import roc_auc_score
 k=10
@@ -396,11 +387,13 @@ for train_indices, test_indices in k_fold.split(cleaned_emails, labels):
     for max_features in max_features_option:
         if max_features not in auc_record:
             auc_record[max_features] = {}
-            cv = CountVectorizer(stop_words="english", max_features=max_features)
-            term_docs_train = cv.fit_transform(X_train)
-            term_docs_test = cv.transform(X_test)
-            for smoothing_factor in smoothing_factor_option:
-                if smoothing_factor not in auc_record[max_features]:
+            # Commented out CountVectorizer and used tfidf instead to increase weight of important words
+            # cv = CountVectorizer(stop_words="english", max_features=max_features)
+            tv = TfidfVectorizer(sublinear_tf=True,max_df=0.5, stop_words='english', max_features=8000)
+            term_docs_train = tv.fit_transform(X_train)
+            term_docs_test = tv.transform(X_test)
+            for smoothing in smoothing_factor_option:
+                if smoothing not in auc_record[max_features]:
                     auc_record[max_features][smoothing] = {}
                 for fit_prior in fit_prior_option:
                     clf = MultinomialNB(alpha=smoothing, fit_prior=fit_prior)
@@ -417,3 +410,4 @@ for max_features, max_feature_record in auc_record.items():
     for smoothing, smoothing_record in max_feature_record.items():
         for fit_prior, auc in smoothing_record.items():
             print('       {0}      {1}      {2}    {3:.4f}'.format(max_features, smoothing, fit_prior, auc/k))
+            
