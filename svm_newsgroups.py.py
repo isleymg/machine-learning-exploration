@@ -159,3 +159,83 @@ svc_libsvm_best = grid_search.best_estimator_
 accuracy = svc_libsvm_best.score(term_docs_test, label_test)
 print('The accuracy on testing set is: {0:.1f}%'.format(accuracy*100))
 # The accuracy on testing set is: 76.2%
+
+# In[23]:
+
+
+# Using LinearSVC
+from sklearn.svm import LinearSVC
+svc_linear = LinearSVC()
+grid_search = GridSearchCV(svc_linear, parameters, n_jobs=-1, cv=3)
+
+start_time = timeit.default_timer()
+grid_search.fit(term_docs_train, label_train)
+print("--- %0.3fs seconds ---" % (timeit.default_timer() - start_time))
+
+
+# In[24]:
+
+
+# Optimal set of parameters (optimal C)
+grid_search.best_params_
+
+# Best 3-fold averaged performace under optimal C
+grid_search.best_score_
+
+# Retrieve SVM model with optimal parameter and apply to unknown testing set
+svc_libsvm_best = grid_search.best_estimator_
+accuracy = svc_libsvm_best.score(term_docs_test, label_test)
+print('The accuracy on testing set is: {0:.1f}%'.format(accuracy*100))
+# The accuracy on testing set is: 77.9%
+
+# LinearSVC outperforms livsvm because LinearSVC uses the liblinear library, designed for large datasets
+
+
+# In[32]:
+
+
+# Feature extraction and classification should be cross validated collectively
+# Use Pipeline to do this
+from sklearn.pipeline import Pipeline
+pipeline = Pipeline([
+    ('tfidf', TfidfVectorizer(stop_words='english')),
+    ('svc', LinearSVC()),
+])
+
+parameters_pipeline = {
+    'tfidf__max_df': (0.25, 0.5),
+    'tfidf__max_features': (40000, 50000),
+    'tfidf__sublinear_tf': (True, False),
+    'tfidf__smooth_idf': (True, False),
+    'svc__C': (0.1, 1, 10, 100),
+}
+
+'''
+Tuning the tdidf feature extractor:
+    max_df: max doc frequency of a term to be allowed
+    max_features: number of top features to consider
+    sublinear_tf: scaling term freq with log function or not
+    smoothing_idf: add initial 1 to doc freq
+'''
+
+grid_search = GridSearchCV(pipeline, parameters_pipeline, n_jobs=-1, cv=3)
+start_time = timeit.default_timer()
+grid_search.fit(cleaned_train, label_train)
+print("--- %0.3fs seconds ---" % (timeit.default_timer() - start_time))
+
+
+# In[34]:
+
+
+# Optimal set of parameters (optimal C)
+grid_search.best_params_
+
+# Best 3-fold averaged performace under optimal C
+grid_search.best_score_
+
+# Retrieve SVM model with optimal parameter and apply to unknown testing set
+pipeline_best = grid_search.best_estimator_
+accuracy = pipeline_best.score(cleaned_test, label_test)
+print('The accuracy on testing set is: {0:.1f}%'.format(accuracy*100))
+# The accuracy on testing set is: 80.6%
+# (best accuracy)
