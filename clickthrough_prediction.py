@@ -7,7 +7,7 @@
 '''
 Predicting Clickthrough Rates with Decision Trees
 -------------------------------------------------
-- Grow tree greedily by making series of local optimizations on choosing 
+- Grow tree greedily by making series of local optimizations on choosing
 the most significant feature to partition on
 - Split based on that feature
 - Splitting process stops at subgroup where:
@@ -83,14 +83,14 @@ def entropy(labels):
 
 '''
 Information Gain = Entropy(parent) - Entropy(children)
-Want to maximize information gain from splitting on different features 
+Want to maximize information gain from splitting on different features
 Both gini impurity and information gain measure the weighted impurity of children after a split
 '''
 
 criterion_function =  {'gini': gini_impurity,'entropy': entropy}
 def weighted_impurity(groups, criterion='gini'):
     '''Calculate weighted impurity of children after split
-    Args: 
+    Args:
         groups (list of children, children consist of a list of class labels)
         criterion (metric to measure quality of a split, 'gini' or 'entropy')
     Returns:
@@ -107,4 +107,160 @@ children_2 = [[1, 1], [0, 0, 1]]
 print('Entropy of #1 split: {0:.4f}'.format(weighted_impurity(children_1, 'entropy')))
 print('Entropy of #2 split: {0:.4f}'.format(weighted_impurity(children_2, 'entropy')))
 
+def split_node(X, y, index, value):
+    '''Utility function to split node into left child and right child based on feature and value
+    Args:
+        X, y (numpy.ndarray, data set)
+        index (int, index of the feature used for splitting)
+        value
+    Returns:
+        list, list
+    '''
+    x_index = X[:, index]
+    # if this feature is numerical
+    if X[0, index].dtype.kind in ['i', 'f']:
+        mask = x_index >= value
+    # if this feature is categorical
+    else:
+        mask = x_index == value
+        # split into left and right child
+        left = [X[~mask, :], y[~mask]]
+        right = [X[mask, :], y[mask]]
+        return left, right
 
+
+def get_best_split(X, y, criterion):
+    '''Obtain the best splitting point and resulting children for the data set X, y
+    Args:
+        X, y (numpy.ndarray, data set)
+        criterion (gini or entropy)
+    Returns:
+        dict {index of feature: feature value, children: left and right children}
+    '''
+
+    best_index, best_value, best_score, children = None, None, 1, None
+    for index in range(len(X[0])):
+        for value in np.sort(np.unique(X[:, index])):
+            groups = split_node(X, y, index, value)
+            impurity = weighted_impurity([groups[0][1], groups[1][1]], criterion)
+            if impurity < best_score:
+                best_index, best_value, best_score, children = index, value, impurity, groups
+    return {'index': best_index, 'value': best_value, 'children': children}
+
+
+def get_leaf(labels):
+    '''When stopping criterion is met, obtain the leaf as the majority of the labels'''
+    return np.bincount(labels).argmax()
+
+def split(node, max_depth, min_size, depth, criterion):
+    '''Split children of a node to construct new nodes or
+            assign them terminals
+    Args:
+       node (dict, with children info)
+       max_depth (int, maximal depth of the tree)
+       min_size (int, minimal samples required to further split a child)
+       depth (int, current depth of the node)
+       criterion (gini or entropy)
+
+    What this does:
+    - Assigning a leaf node if one of two children nodes is empty
+    - Assigning a leaf node if the current branch depth exceeds the maximal depth allowed
+    - Assigning a leaf node if it does not contain sufficient samples required for a further split
+    - Otherwise, proceeding with further splits with the optimal splitting point
+
+    '''
+    left, right = node['children']
+    del (node['children'])
+    if left[1].size == 0:
+        node['right'] = get_leaf(right[1])
+        return
+    if right[1].size == 0:
+        node['left'] = get_leaf(left[1])
+        return
+    # Check if the current depth exceeds the maximal depth
+    if depth >= max_depth:
+        node['left'], node['right'] = get_leaf(left[1]), get_leaf(right[1])
+        return
+    # Check if the left child has enough samples
+    if left[1].size <= min_size:
+        node['left'] = get_leaf(left[1])
+    else:
+        # It has enough samples, we further split it
+        result = get_best_split(left[0], left[1], criterion)
+        result_left, result_right = result['children']
+        if result_left[1].size == 0:
+            node['left'] = get_leaf(result_right[1])
+        elif result_right[1].size == 0:
+            node['left'] = get_leaf(result_left[1])
+        else:
+            node['left'] = result
+            split(node['left'], max_depth, min_size, depth + 1, criterion)
+        # Check if the right child has enough samples
+        if right[1].size <= min_size:
+            node['right'] = get_leaf(right[1])
+        else:
+        # It has enough samples, we further split it
+            result = get_best_split(right[0], right[1], criterion)
+            result_left, result_right = result['children']
+            if result_left[1].size == 0:
+                node['right'] = get_leaf(result_right[1])
+            elif result_right[1].size == 0:
+                node['right'] = get_leaf(result_left[1])
+            else:
+                node['right'] = result
+                split(node['right'], max_depth, min_size, depth + 1, criterion)
+
+
+def train_tree(X_train, y_train, max_depth, min_size, criterion='gini'):
+    '''Construction of a tree starts here
+    Args:
+        X_train, y_train (list, list, training data)
+        max_depth (int, maximal depth of tree)
+        min_size (int, minimal samples required to further splita a child)
+        criterion (gini or entropy)
+    '''
+    X = np.array(X_train)
+    y = np.array(y_train)
+    root = get_best_split(X, y, criterion)
+    split(root, max_depth, min_size, 1, criterion)
+    return root
+
+CONDITION = {'numerical': {'yes': '>=', 'no': '<'}, 'categorical': {'yes': 'is', 'no': 'is not'}}
+
+def visualize_tree(node, depth=0):
+    if isinstance(node, dict):
+        if node['value'].dtype.kind in ['i', 'f']:
+            condition = CONDITION['numerical']
+        else:
+            condition = CONDITION['categorical']
+        print('{}|- X{} {} {}'.format(depth * '  ',
+                node['index'] + 1, condition['no'], node['value']))
+        if 'left' in node:
+            visualize_tree(node['left'], depth + 1)
+            print('{}|- X{} {} {}'.format(depth * '  ', node['index'] + 1, condition['yes'], node['value']))
+            if 'right' in node:
+                visualize_tree(node['right'], depth + 1)
+        else:
+            print('{}[{}]'.format(depth * '  ', node))
+
+# Test tree with categorical data
+X_train = [['tech', 'professional'],
+           ['fashion', 'student'],
+           ['fashion', 'professional'],
+           ['sports', 'student'],
+           ['tech', 'student'],
+           ['tech', 'retired'],
+           ['sports', 'professional']]
+y_train = [1,0,0,0,1,0,1]
+tree = train_tree(X_train, y_train,2,2)
+visualize_tree(tree)
+
+
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.tree import export_graphviz
+tree_sk = DecisionTreeClassifier(criterion='gini', max_depth=2, min_samples_split=2)
+tree_sk.fit(X_train_n, y_train_n)
+
+export_graphviz(tree_sk, out_file='tree.dot', feature_names=['X1', 'X2'], impurity=False, filled=True, class_names=['0', '1'])
+
+# Dataset:  https://www.kaggle.com/c/avazu-ctr-prediction/data
