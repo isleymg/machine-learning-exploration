@@ -35,4 +35,16 @@ Workflow
 
 
 
-Source: Python Machine Learning By Example 
+Source: Python Machine Learning By Example
+ 
+        By: Yuxi [Hayden] Liu
+
+        Publisher: Packt Publishing
+
+        Pub. Date: May 31, 2017
+
+        Print ISBN-13: 978-1-78355-311-2
+
+        Web ISBN-13: 978-1-78355-312-9
+
+        Pages in Print Edition: 254
