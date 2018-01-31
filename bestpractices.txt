@@ -1,0 +1,38 @@
+Best Practices
+--------------
+Workflow
+- Data preparation
+    - Understand the business problem
+    - Collect all relevant fields
+    - Maintain consistency of field values
+    - Deal with missing data
+- Training sets generation: Data preprocessing + Feature engineering
+    - Determine categorical features with numerical values
+    - Decide on whether or not to encode categorical features
+    - Decide on whether or not to reduce dimensionality and if so how
+    - Decide on whether or not to scale features
+    - Perform feature engineering with domain expertise
+    - Document how each feature is generated
+- Algorithm training, evaluation, selection
+    - Choose the right algorithm(s) to start with. Consider:
+            * Size of the training dataset
+            * Dimensionality of the dataset
+            * Whether the data is linearly separable
+            * Whether features are independent
+            * Tolerance and tradeoff of bias and variance
+            * Whether online learning is required
+        - Naive Bayes
+        - Logistic regression
+        - SVM
+        - Random forest
+        - Neural networks
+    - Reduce overfitting
+    - Diagnose overfitting and underfitting
+- Deployment and monitoring
+    - Save, load, and reuse models
+    - Monitor model performance
+    - Update models regularly
+
+
+
+Source: Python Machine Learning By Example 
